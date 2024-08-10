@@ -44,6 +44,8 @@ class AMultiFPSCharacter : public ACharacter
 public:
 	AMultiFPSCharacter();
 
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 protected:
 	virtual void BeginPlay();
 
@@ -54,8 +56,8 @@ public:
 	class UInputAction* LookAction;
 
 	/** Bool for AnimBP to switch to another animation set */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Weapon)
-	bool bHasRifle;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Weapon, Replicated)
+	uint8 bHasRifle : 1;
 
 	/** Setter to set the bool */
 	UFUNCTION(BlueprintCallable, Category = Weapon)

@@ -1,0 +1,1 @@
+UnrealEditor.exe %cd%\MultiFPS.uproject -NetTrace=1 -Trace=Net

@@ -9,6 +9,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "MultiFPS.h"
+#include "Net/UnrealNetwork.h"
 
 // Sets default values for this component's properties
 UTP_WeaponComponent::UTP_WeaponComponent()
@@ -17,6 +19,11 @@ UTP_WeaponComponent::UTP_WeaponComponent()
 	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
 }
 
+void UTP_WeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UTP_WeaponComponent, Character);
+}
 
 void UTP_WeaponComponent::Fire()
 {
@@ -25,24 +32,26 @@ void UTP_WeaponComponent::Fire()
 		return;
 	}
 
-	// Try and fire a projectile
-	if (ProjectileClass != nullptr)
+	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+
+	// 발사 위치 계산
+	const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
+	const FVector SpawnLocation = GetOwner()->GetActorLocation() + SpawnRotation.RotateVector(MuzzleOffset);
+
+	if(!Character->HasAuthority())
 	{
-		UWorld* const World = GetWorld();
-		if (World != nullptr)
-		{
-			APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
-			const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-			// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
-			const FVector SpawnLocation = GetOwner()->GetActorLocation() + SpawnRotation.RotateVector(MuzzleOffset);
-	
-			//Set Spawn Collision Handling Override
-			FActorSpawnParameters ActorSpawnParams;
-			ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
-	
-			// Spawn the projectile at the muzzle
-			World->SpawnActor<AMultiFPSProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
-		}
+		OnFire(SpawnLocation, SpawnRotation);
+	}
+	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+	ServerFire(SpawnLocation, SpawnRotation);
+}
+
+void UTP_WeaponComponent::OnFire(const FVector& SpawnLocation, const FRotator& SpawnRotation)
+{
+	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+	if(Character->HasAuthority())
+	{
+		CreateProjectile(SpawnLocation,SpawnRotation);
 	}
 	
 	// Try and play the sound if specified
@@ -63,10 +72,66 @@ void UTP_WeaponComponent::Fire()
 	}
 }
 
+void UTP_WeaponComponent::CreateProjectile(const FVector& SpawnLocation, const FRotator& SpawnRotation)
+{
+	if (ProjectileClass != nullptr)
+	{
+		MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+		//Set Spawn Collision Handling Override
+		FActorSpawnParameters ActorSpawnParams;
+		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+		AMultiFPSProjectile* Projectile = nullptr;
+		// Spawn the projectile at the muzzle
+		Projectile = GetWorld()->SpawnActor<AMultiFPSProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+		if(Projectile) Projectile->SetOwner(Character);	
+	}
+}
+
+void UTP_WeaponComponent::ServerFire_Implementation(const FVector& SpawnLocation, const FRotator& SpawnRotation)
+{
+	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+	MulticastFire(SpawnLocation, SpawnRotation);
+}
+
+void UTP_WeaponComponent::MulticastFire_Implementation(const FVector& SpawnLocation, const FRotator& SpawnRotation)
+{
+	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+	// 격발자, 서버 제외
+	if(Character->IsLocallyControlled() && !Character->HasAuthority()) return;
+	OnFire(SpawnLocation, SpawnRotation);
+}
+
 void UTP_WeaponComponent::AttachWeapon(AMultiFPSCharacter* TargetCharacter)
 {
+	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
 	Character = TargetCharacter;
+	// Owner는 총임
+	AActor* OwnerActor = GetOwner();
+	AActor* OwnerCharacter = OwnerActor->GetOwner();
+	
+	if(OwnerCharacter)
+	{
+		MF_SUBLOG(LogMFTemp, Warning, TEXT("Owner : %s"), *OwnerCharacter->GetName())
+	}
+	else
+	{
+		MF_SUBLOG(LogMFTemp, Warning, TEXT("%s"), TEXT("No Owner"))
+	}
 
+	OwnerCharacter = Character;	
+	OwnerActor->SetOwner(Character);
+	
+	if(OwnerCharacter)
+	{
+		MF_SUBLOG(LogMFTemp, Warning, TEXT("Owner : %s"), *OwnerCharacter->GetName())
+	}
+	else
+	{
+		MF_SUBLOG(LogMFTemp, Warning, TEXT("%s"), TEXT("No Owner"))
+	}
+	
+	
 	// Check that the character is valid, and has no rifle yet
 	if (Character == nullptr || Character->GetHasRifle())
 	{
@@ -80,6 +145,8 @@ void UTP_WeaponComponent::AttachWeapon(AMultiFPSCharacter* TargetCharacter)
 	// switch bHasRifle so the animation blueprint can switch to another animation set
 	Character->SetHasRifle(true);
 
+	
+	
 	// Set up action bindings
 	if (APlayerController* PlayerController = Cast<APlayerController>(Character->GetController()))
 	{

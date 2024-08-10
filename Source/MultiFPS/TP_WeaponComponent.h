@@ -41,6 +41,8 @@ public:
 	/** Sets default values for this component's properties */
 	UTP_WeaponComponent();
 
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
 	/** Attaches the actor to a FirstPersonCharacter */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void AttachWeapon(AMultiFPSCharacter* TargetCharacter);
@@ -49,12 +51,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void Fire();
 
+	UFUNCTION(BlueprintCallable, Category="Weapon")
+	void OnFire(const FVector& SpawnLocation, const FRotator& SpawnRotation);
+	
+	UFUNCTION()
+	void CreateProjectile(const FVector& SpawnLocation, const FRotator& SpawnRotation);
+
+	UFUNCTION(Server, Unreliable)
+	void ServerFire(const FVector& SpawnLocation, const FRotator& SpawnRotation);
+	
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastFire(const FVector& SpawnLocation, const FRotator& SpawnRotation);
+	
 protected:
 	/** Ends gameplay for this component. */
 	UFUNCTION()
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-private:
 	/** The Character holding this weapon*/
-	AMultiFPSCharacter* Character;
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Replicated)
+	TObjectPtr<AMultiFPSCharacter> Character;
 };
