@@ -6,6 +6,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "TP_WeaponComponent.generated.h"
 
+class UInputAction;
+class UInputMappingContext;
 class AMultiFPSCharacter;
 
 UCLASS(Blueprintable, BlueprintType, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -18,13 +20,17 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category=Projectile)
 	TSubclassOf<class AMultiFPSProjectile> ProjectileClass;
 
+	/** MuzzleFlashEffect to play each time we fire */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
+	TObjectPtr<UParticleSystem> MuzzleFlashEffect;
+	
 	/** Sound to play each time we fire */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
-	USoundBase* FireSound;
+	TObjectPtr<USoundBase> FireSound;
 	
 	/** AnimMontage to play each time we fire */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
-	UAnimMontage* FireAnimation;
+	TObjectPtr<UAnimMontage> FireAnimation;
 
 	/** Gun muzzle's offset from the characters location */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
@@ -32,15 +38,18 @@ public:
 
 	/** MappingContext */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
-	class UInputMappingContext* FireMappingContext;
+	TObjectPtr<UInputMappingContext> FireMappingContext;
 
 	/** Fire Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
-	class UInputAction* FireAction;
+	TObjectPtr<UInputAction> FireAction;
 
 	/** Sets default values for this component's properties */
 	UTP_WeaponComponent();
 
+
+	virtual void InitializeComponent() override;
+	
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	
 	/** Attaches the actor to a FirstPersonCharacter */
@@ -57,6 +66,15 @@ public:
 	UFUNCTION()
 	void CreateProjectile(const FVector& SpawnLocation, const FRotator& SpawnRotation);
 
+	UFUNCTION()
+	void PlayEffect(const FVector& SpawnLocation, const FRotator& SpawnRotation);
+
+	UFUNCTION()
+	void PlaySound();
+
+	UFUNCTION()
+	void PlayMontage();
+	
 	UFUNCTION(Server, Unreliable)
 	void ServerFire(const FVector& SpawnLocation, const FRotator& SpawnRotation);
 	

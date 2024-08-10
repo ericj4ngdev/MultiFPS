@@ -17,6 +17,41 @@ UTP_WeaponComponent::UTP_WeaponComponent()
 {
 	// Default offset from the character location for projectiles to spawn
 	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
+
+	// static ConstructorHelpers::FObjectFinder<USkeletalMeshComponent> 
+	// /Script/Engine.SkeletalMesh'/Game/FPWeapon/Mesh/SK_FPGun.SK_FPGun'
+
+
+	static ConstructorHelpers::FObjectFinder<USoundBase> FireSoundRef(TEXT("/Script/Engine.SoundWave'/Game/FPWeapon/Audio/FirstPersonTemplateWeaponFire02.FirstPersonTemplateWeaponFire02'"));
+	if(FireSoundRef.Object)
+	{
+		FireSound = FireSoundRef.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> FireAnimationRef(TEXT("/Script/Engine.AnimMontage'/Game/FirstPersonArms/Animations/FP_Rifle_Shoot_Montage.FP_Rifle_Shoot_Montage'"));
+	if(FireAnimationRef.Object)
+	{
+		FireAnimation = FireAnimationRef.Object;
+	}
+	
+	/*static ConstructorHelpers::FObjectFinder<UInputMappingContext> FireMappingContextRef(TEXT("/Script/EnhancedInput.InputMappingContext'/Game/FirstPerson/Input/IMC_Weapons.IMC_Weapons'"));
+	if(FireMappingContextRef.Object)
+	{
+		FireMappingContext = FireMappingContextRef.Object;
+	}*/
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> FireActionRef(TEXT("/Script/EnhancedInput.InputAction'/Game/FirstPerson/Input/Actions/IA_Shoot.IA_Shoot'"));
+	if(FireActionRef.Object)
+	{
+		FireAction = FireActionRef.Object;
+	}
+}
+
+void UTP_WeaponComponent::InitializeComponent()
+{
+	SetIsReplicated(true);
+	Super::InitializeComponent();
+	
 }
 
 void UTP_WeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -42,7 +77,7 @@ void UTP_WeaponComponent::Fire()
 	{
 		OnFire(SpawnLocation, SpawnRotation);
 	}
-	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+	
 	ServerFire(SpawnLocation, SpawnRotation);
 }
 
@@ -54,22 +89,9 @@ void UTP_WeaponComponent::OnFire(const FVector& SpawnLocation, const FRotator& S
 		CreateProjectile(SpawnLocation,SpawnRotation);
 	}
 	
-	// Try and play the sound if specified
-	if (FireSound != nullptr)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
-	}
-	
-	// Try and play a firing animation if specified
-	if (FireAnimation != nullptr)
-	{
-		// Get the animation object for the arms mesh
-		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
-		if (AnimInstance != nullptr)
-		{
-			AnimInstance->Montage_Play(FireAnimation, 1.f);
-		}
-	}
+	PlayEffect(SpawnLocation,SpawnRotation);
+	PlaySound();
+	PlayMontage();	
 }
 
 void UTP_WeaponComponent::CreateProjectile(const FVector& SpawnLocation, const FRotator& SpawnRotation)
@@ -85,6 +107,44 @@ void UTP_WeaponComponent::CreateProjectile(const FVector& SpawnLocation, const F
 		// Spawn the projectile at the muzzle
 		Projectile = GetWorld()->SpawnActor<AMultiFPSProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
 		if(Projectile) Projectile->SetOwner(Character);	
+	}
+}
+
+void UTP_WeaponComponent::PlayEffect(const FVector& SpawnLocation, const FRotator& SpawnRotation)
+{
+	if(MuzzleFlashEffect != nullptr)
+	{
+		MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+		UGameplayStatics::SpawnEmitterAtLocation(
+			GetWorld(),
+			MuzzleFlashEffect,
+			SpawnLocation,
+			SpawnRotation);
+	}
+}
+
+void UTP_WeaponComponent::PlaySound()
+{
+	// Try and play the sound if specified
+	if (FireSound != nullptr)
+	{
+		MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
+	}
+}
+
+void UTP_WeaponComponent::PlayMontage()
+{
+	// Try and play a firing animation if specified
+	if (FireAnimation != nullptr)
+	{
+		MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+		// Get the animation object for the arms mesh
+		UAnimInstance* AnimInstance = Character->GetMesh1P()->GetAnimInstance();
+		if (AnimInstance != nullptr)
+		{
+			AnimInstance->Montage_Play(FireAnimation, 1.f);
+		}
 	}
 }
 
