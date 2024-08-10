@@ -10,6 +10,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "MultiFPS.h"
+#include "Engine/SkeletalMeshSocket.h"
 #include "Net/UnrealNetwork.h"
 
 // Sets default values for this component's properties
@@ -33,31 +34,26 @@ UTP_WeaponComponent::UTP_WeaponComponent()
 	{
 		FireAnimation = FireAnimationRef.Object;
 	}
-	
-	/*static ConstructorHelpers::FObjectFinder<UInputMappingContext> FireMappingContextRef(TEXT("/Script/EnhancedInput.InputMappingContext'/Game/FirstPerson/Input/IMC_Weapons.IMC_Weapons'"));
-	if(FireMappingContextRef.Object)
-	{
-		FireMappingContext = FireMappingContextRef.Object;
-	}*/
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> FireActionRef(TEXT("/Script/EnhancedInput.InputAction'/Game/FirstPerson/Input/Actions/IA_Shoot.IA_Shoot'"));
 	if(FireActionRef.Object)
 	{
 		FireAction = FireActionRef.Object;
 	}
+
+	MuzzleSocketName = FName("Muzzle");
 }
 
 void UTP_WeaponComponent::InitializeComponent()
 {
-	SetIsReplicated(true);
-	Super::InitializeComponent();
-	
+	Super::InitializeComponent();	
 }
 
 void UTP_WeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UTP_WeaponComponent, Character);
+	DOREPLIFETIME(UTP_WeaponComponent, FireStartTime);
 }
 
 void UTP_WeaponComponent::Fire()
@@ -83,12 +79,7 @@ void UTP_WeaponComponent::Fire()
 
 void UTP_WeaponComponent::OnFire(const FVector& SpawnLocation, const FRotator& SpawnRotation)
 {
-	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
-	if(Character->HasAuthority())
-	{
-		CreateProjectile(SpawnLocation,SpawnRotation);
-	}
-	
+	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))	
 	PlayEffect(SpawnLocation,SpawnRotation);
 	PlaySound();
 	PlayMontage();	
@@ -148,10 +139,27 @@ void UTP_WeaponComponent::PlayMontage()
 	}
 }
 
+FTransform UTP_WeaponComponent::GetSocketTransformByName(FName InSocketName, const USkeletalMeshComponent* SkelComp)
+{
+	const USkeletalMeshSocket* Socket = SkelComp->GetSocketByName(InSocketName);
+	FTransform SocketTransform;
+		
+	if(IsValid(Socket))
+	{
+		SocketTransform = Socket->GetSocketTransform(SkelComp);
+	}
+
+	return SocketTransform;
+}
+
 void UTP_WeaponComponent::ServerFire_Implementation(const FVector& SpawnLocation, const FRotator& SpawnRotation)
 {
 	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
-	MulticastFire(SpawnLocation, SpawnRotation);
+
+	CreateProjectile(SpawnLocation,SpawnRotation);
+	FireStartTime = GetWorld()->GetTimeSeconds();
+	
+	// MulticastFire(SpawnLocation, SpawnRotation);
 }
 
 void UTP_WeaponComponent::MulticastFire_Implementation(const FVector& SpawnLocation, const FRotator& SpawnRotation)
@@ -204,8 +212,6 @@ void UTP_WeaponComponent::AttachWeapon(AMultiFPSCharacter* TargetCharacter)
 	
 	// switch bHasRifle so the animation blueprint can switch to another animation set
 	Character->SetHasRifle(true);
-
-	
 	
 	// Set up action bindings
 	if (APlayerController* PlayerController = Cast<APlayerController>(Character->GetController()))
@@ -222,6 +228,20 @@ void UTP_WeaponComponent::AttachWeapon(AMultiFPSCharacter* TargetCharacter)
 			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &UTP_WeaponComponent::Fire);
 		}
 	}
+}
+
+void UTP_WeaponComponent::OnRep_FireStartTime()
+{
+	MF_SUBLOG(LogMFTemp, Warning, TEXT("Begin"))
+	// 클라 && 서버 X => 클라 본인 제외
+	if(Character->IsLocallyControlled() && !Character->HasAuthority()) return;	
+	
+	FTransform MuzzleSocketTransform = GetSocketTransformByName(MuzzleSocketName, this);
+	FRotator FireEffectRotation = MuzzleSocketTransform.GetRotation().Rotator();
+	
+	PlayEffect(MuzzleSocketTransform.GetLocation(), FireEffectRotation);
+	PlaySound();
+	PlayMontage();	
 }
 
 void UTP_WeaponComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)

@@ -74,12 +74,18 @@ public:
 
 	UFUNCTION()
 	void PlayMontage();
+
+	UFUNCTION()
+	FTransform GetSocketTransformByName( FName InSocketName, const class USkeletalMeshComponent* SkelComp);
 	
-	UFUNCTION(Server, Unreliable)
+	UFUNCTION(Server, Reliable)
 	void ServerFire(const FVector& SpawnLocation, const FRotator& SpawnRotation);
 	
-	UFUNCTION(NetMulticast, Unreliable)
+	UFUNCTION(NetMulticast, Reliable)
 	void MulticastFire(const FVector& SpawnLocation, const FRotator& SpawnRotation);
+
+	UFUNCTION()
+	void OnRep_FireStartTime();
 	
 protected:
 	/** Ends gameplay for this component. */
@@ -89,4 +95,11 @@ protected:
 	/** The Character holding this weapon*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Replicated)
 	TObjectPtr<AMultiFPSCharacter> Character;
+
+	UPROPERTY(EditAnywhere, Category = "Properties|Weapon")
+	FName MuzzleSocketName;
+	
+	UPROPERTY(ReplicatedUsing = OnRep_FireStartTime)
+	float FireStartTime;
+	
 };
